@@ -36,7 +36,7 @@
         <span id="system-status" class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-medium flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Sistem Online
         </span>
-        <button onclick="loadData()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Refresh Data">
+        <button onclick="loadData()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer" title="Refresh Data">
           <i class="fa-solid fa-rotate"></i>
         </button>
       </div>
@@ -74,7 +74,7 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
           <div class="flex justify-between items-start text-slate-400 text-sm">
             <span>Frekuensi RX (POC)</span>
-            <i class="fa-solid fa-耳朵 text-amber-500"></i>
+            <i class="fa-solid fa-satellite-dish text-amber-500"></i>
           </div>
           <div class="mt-2 text-2xl font-bold text-white" id="stat-freq-rx">145.000 <span class="text-sm font-normal text-slate-400">MHz</span></div>
           <div class="text-xs text-slate-400 mt-1">CTSS: 88.5 Hz</div>
@@ -168,7 +168,6 @@
         <p class="text-sm text-slate-400 mb-6">Ubah parameter frekuensi, tone CTSS, dan konfigurasi lainnya yang tersimpan di Google Sheet.</p>
         
         <div id="config-form-container" class="space-y-4">
-          <!-- Dinamis diisi JS -->
           <div class="text-slate-500">Memuat konfigurasi...</div>
         </div>
       </div>
@@ -183,7 +182,7 @@
             <p class="text-sm text-slate-400">Kode lengkap ESP32 yang dilengkapi integrasi OLED SSD1306, pembacaan HTTP GAS, dan kontrol PTT.</p>
           </div>
           <button onclick="copyESPCode()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition flex items-center gap-2 cursor-pointer">
-            <i class="fa-solid fa-copy">></i> Salin Kode
+            <i class="fa-solid fa-copy"></i> Salin Kode
           </button>
         </div>
         
@@ -202,6 +201,9 @@
 
   <!-- JavaScript Client Logic -->
   <script>
+    // MASUKKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwyemjXDlDI8NLR4a8AFBJJJwtTLje40wjfTRXoV_gnIPsSzRMgyDQeTL_F6PlOj0Xp/exec";
+    
     let chartInstance = null;
 
     window.onload = function() {
@@ -222,27 +224,29 @@
     }
 
     function loadData() {
-      google.script.run
-        .withSuccessHandler(function(data) {
-          renderDashboard(data);
+      fetch(`${GAS_URL}?action=getDashboardData`)
+        .then(res => res.json())
+        .then(result => {
+          if (result.status === "success") {
+            renderDashboard(result.data);
+          } else {
+            alert("Gagal memuat data: " + result.message);
+          }
         })
-        .withFailureHandler(function(err) {
-          alert("Gagal memuat data: " + err.message);
-        })
-        .getDashboardData();
+        .catch(err => {
+          console.error("Error:", err);
+          alert("Gagal terhubung ke backend Google Apps Script.");
+        });
     }
 
     function renderDashboard(data) {
-      // Total log
       document.getElementById('stat-total-log').innerText = data.logs.length;
       
-      // Update config stats if available
       data.configs.forEach(cfg => {
         if (cfg.name === 'DEFAULT_FREQ_RX') document.getElementById('stat-freq-rx').innerHTML = `${cfg.value} <span class="text-sm font-normal text-slate-400">MHz</span>`;
         if (cfg.name === 'DEFAULT_FREQ_TX') document.getElementById('stat-freq-tx').innerHTML = `${cfg.value} <span class="text-sm font-normal text-slate-400">MHz</span>`;
       });
 
-      // Render Logs Table
       let tbody = document.getElementById('log-table-body');
       tbody.innerHTML = "";
       if (data.logs.length === 0) {
@@ -263,7 +267,6 @@
         });
       }
 
-      // Render Config Form
       let cfgContainer = document.getElementById('config-form-container');
       cfgContainer.innerHTML = "";
       data.configs.forEach(cfg => {
@@ -284,21 +287,23 @@
 
     function saveConfig(name) {
       let val = document.getElementById(`cfg-val-${name}`).value;
-      google.script.run
-        .withSuccessHandler(function(res) {
-          alert(res);
+      fetch(`${GAS_URL}?action=updateConfig&name=${encodeURIComponent(name)}&value=${encodeURIComponent(val)}`)
+        .then(res => res.json())
+        .then(res => {
+          alert(res.message);
           loadData();
         })
-        .updateConfigValue(name, val);
+        .catch(err => alert("Gagal menyimpan konfigurasi."));
     }
 
     function runDatabaseSetup() {
-      google.script.run
-        .withSuccessHandler(function(res) {
-          alert(res);
+      fetch(`${GAS_URL}?action=setupDatabase`)
+        .then(res => res.json())
+        .then(res => {
+          alert(res.message);
           loadData();
         })
-        .setupDatabase();
+        .catch(err => alert("Gagal menjalankan setup database."));
     }
 
     function initChart() {
@@ -347,14 +352,10 @@
 #define OLED_RESET    -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// Konfigurasi WiFi
 const char* ssid = "WIFI_SSID_ANDA";
 const char* password = "WIFI_PASSWORD_ANDA";
+const char* gas_url = "${GAS_URL}";
 
-// URL Web App Google Apps Script Anda
-const char* gas_url = "https://script.google.com/macros/s/AKfycb.../exec";
-
-// Pin Definisi Audio Interface & PTT
 const int PTT_PIN = 25;
 const int COS_PIN = 26;
 
@@ -363,7 +364,6 @@ void setup() {
   pinMode(PTT_PIN, OUTPUT);
   pinMode(COS_PIN, INPUT_PULLUP);
   
-  // Inisialisasi OLED
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;);
@@ -390,22 +390,20 @@ void setup() {
 }
 
 void loop() {
-  // Cek Status COS / Sinyal Masuk dari HT POC
   if (digitalRead(COS_PIN) == LOW) {
-    digitalWrite(PTT_PIN, HIGH); // Aktifkan PTT ke HT Analog
+    digitalWrite(PTT_PIN, HIGH);
     updateOLED("TX ACTIVE", "143.500 MHz", "CTSS: 88.5");
     sendLogToGAS("TX", "143.500", "88.5", "Sinyal diteruskan ke Analog");
     delay(1000);
   } else {
-    digitalWrite(PTT_PIN, LOW); // Lepas PTT
+    digitalWrite(PTT_PIN, LOW);
     updateOLED("STANDBY / RX", "145.000 MHz", "CTSS: 88.5");
   }
-  
   delay(3000);
 }
 
 void updateOLED(String status, String freq, String tone) {
-  display.clearDisplay();
+  display.clearDeploy ? display.clearDisplay() : display.clearDisplay();
   display.setCursor(0,0);
   display.println("=== POC GATEWAY ===");
   display.setCursor(0,16);
