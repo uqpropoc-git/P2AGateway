@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POC to Analog Gateway Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <!-- Chart.js untuk Grafik TX/RX -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome untuk Ikon -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .code-font { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-sky-500 selection:text-white">
+
+  <!-- Header / Navigation -->
+  <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <div class="bg-sky-600 p-2 rounded-xl text-white shadow-lg shadow-sky-600/30">
+          <i class="fa-solid fa-walkie-talkie text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg tracking-wide text-white">POC-Analog Gateway</h1>
+          <p class="text-xs text-slate-400">ESP32 & Google Apps Script Infrastructure</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span id="system-status" class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-medium flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Sistem Online
+        </span>
+        <button onclick="loadData()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Refresh Data">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-6 w-full space-y-6 flex-grow">
+    
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-slate-800 space-x-4">
+      <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="py-2.5 px-4 font-medium text-sm border-b-2 border-sky-500 text-sky-400 transition cursor-pointer">
+        <i class="fa-solid fa-chart-line mr-2"></i> Dashboard & Log
+      </button>
+      <button onclick="switchTab('config')" id="btn-tab-config" class="py-2.5 px-4 font-medium text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition cursor-pointer">
+        <i class="fa-solid fa-sliders mr-2"></i> Konfigurasi
+      </button>
+      <button onclick="switchTab('generator')" id="btn-tab-generator" class="py-2.5 px-4 font-medium text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition cursor-pointer">
+        <i class="fa-solid fa-code mr-2"></i> Generator Kode ESP32
+      </button>
+    </div>
+
+    <!-- TAB 1: DASHBOARD -->
+    <div id="tab-dashboard" class="space-y-6">
+      <!-- Status Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+          <div class="flex justify-between items-start text-slate-400 text-sm">
+            <span>Status Gateway</span>
+            <i class="fa-solid fa-tower-broadcast text-sky-500"></i>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-white" id="stat-device-status">CONNECTED</div>
+          <div class="text-xs text-emerald-400 mt-1">IP: 192.168.1.150</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+          <div class="flex justify-between items-start text-slate-400 text-sm">
+            <span>Frekuensi RX (POC)</span>
+            <i class="fa-solid fa-耳朵 text-amber-500"></i>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-white" id="stat-freq-rx">145.000 <span class="text-sm font-normal text-slate-400">MHz</span></div>
+          <div class="text-xs text-slate-400 mt-1">CTSS: 88.5 Hz</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+          <div class="flex justify-between items-start text-slate-400 text-sm">
+            <span>Frekuensi TX (Analog)</span>
+            <i class="fa-solid fa-satellite-dish text-indigo-500"></i>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-white" id="stat-freq-tx">143.500 <span class="text-sm font-normal text-slate-400">MHz</span></div>
+          <div class="text-xs text-slate-400 mt-1">DCS: Active</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+          <div class="flex justify-between items-start text-slate-400 text-sm">
+            <span>Total Log Aktivitas</span>
+            <i class="fa-solid fa-database text-emerald-500"></i>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-white" id="stat-total-log">0</div>
+          <div class="text-xs text-slate-400 mt-1">Sinkronisasi Real-time</div>
+        </div>
+      </div>
+
+      <!-- Chart & Live Monitor -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-chart-area text-sky-500"></i> Statistik Aktivitas TX/RX Harian
+          </h3>
+          <div class="h-64 relative">
+            <canvas id="activityChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-amber-500"></i> Info Perangkat ESP32
+            </h3>
+            <p class="text-sm text-slate-400 mb-4">ESP32 terhubung dengan OLED SSD1306 dan Audio Interface Board untuk konversi PTT & Audio.</p>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Chip:</span>
+                <span class="font-medium text-white">ESP32-WROOM-32</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Display:</span>
+                <span class="font-medium text-white">0.96" OLED I2C</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800 pb-2">
+                <span class="text-slate-400">Backend GAS:</span>
+                <span class="font-medium text-emerald-400">Active Web App</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="runDatabaseSetup()" class="w-full mt-4 py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-xl transition shadow-lg shadow-sky-600/20 cursor-pointer">
+            <i class="fa-solid fa-database mr-2"></i> Inisialisasi Database (Setup)
+          </button>
+        </div>
+      </div>
+
+      <!-- Log Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden">
+        <h3 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-sky-500"></i> Log TX / RX Terkini
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 font-medium">
+                <th class="py-3 px-4">Waktu</th>
+                <th class="py-3 px-4">Event</th>
+                <th class="py-3 px-4">Frekuensi</th>
+                <th class="py-3 px-4">CTSS / DCS</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body" class="divide-y divide-slate-800/50 text-slate-300">
+              <tr>
+                <td colspan="6" class="py-4 text-center text-slate-500">Memuat data log...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: CONFIGURATION -->
+    <div id="tab-config" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-2">Pengaturan Parameter Gateway</h3>
+        <p class="text-sm text-slate-400 mb-6">Ubah parameter frekuensi, tone CTSS, dan konfigurasi lainnya yang tersimpan di Google Sheet.</p>
+        
+        <div id="config-form-container" class="space-y-4">
+          <!-- Dinamis diisi JS -->
+          <div class="text-slate-500">Memuat konfigurasi...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: ESP32 CODE GENERATOR -->
+    <div id="tab-generator" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-white">Generator Kode Firmware ESP32 (.ino)</h3>
+            <p class="text-sm text-slate-400">Kode lengkap ESP32 yang dilengkapi integrasi OLED SSD1306, pembacaan HTTP GAS, dan kontrol PTT.</p>
+          </div>
+          <button onclick="copyESPCode()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition flex items-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-copy">></i> Salin Kode
+          </button>
+        </div>
+        
+        <div class="relative bg-slate-950 rounded-xl border border-slate-800 p-4">
+          <pre class="code-font text-xs text-slate-300 overflow-x-auto max-h-[500px]" id="esp-code-box"><code>// Sedang memuat kode firmware ESP32...</code></pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+    POC to Analog Gateway System &bull; Created by UQ &bull; Powered by Google Apps Script & ESP32
+  </footer>
+
+  <!-- JavaScript Client Logic -->
+  <script>
+    let chartInstance = null;
+
+    window.onload = function() {
+      loadData();
+      initChart();
+      generateESPCodeText();
+    };
+
+    function switchTab(tabName) {
+      ['dashboard', 'config', 'generator'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`btn-tab-${t}`).classList.remove('border-sky-500', 'text-sky-400');
+        document.getElementById(`btn-tab-${t}`).classList.add('border-transparent', 'text-slate-400');
+      });
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.getElementById(`btn-tab-${tabName}`).classList.add('border-sky-500', 'text-sky-400');
+      document.getElementById(`btn-tab-${tabName}`).classList.remove('border-transparent', 'text-slate-400');
+    }
+
+    function loadData() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          renderDashboard(data);
+        })
+        .withFailureHandler(function(err) {
+          alert("Gagal memuat data: " + err.message);
+        })
+        .getDashboardData();
+    }
+
+    function renderDashboard(data) {
+      // Total log
+      document.getElementById('stat-total-log').innerText = data.logs.length;
+      
+      // Update config stats if available
+      data.configs.forEach(cfg => {
+        if (cfg.name === 'DEFAULT_FREQ_RX') document.getElementById('stat-freq-rx').innerHTML = `${cfg.value} <span class="text-sm font-normal text-slate-400">MHz</span>`;
+        if (cfg.name === 'DEFAULT_FREQ_TX') document.getElementById('stat-freq-tx').innerHTML = `${cfg.value} <span class="text-sm font-normal text-slate-400">MHz</span>`;
+      });
+
+      // Render Logs Table
+      let tbody = document.getElementById('log-table-body');
+      tbody.innerHTML = "";
+      if (data.logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">Belum ada log aktivitas.</td></tr>`;
+      } else {
+        data.logs.forEach(log => {
+          let badgeColor = log.type === 'TX' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+          tbody.innerHTML += `
+            <tr class="hover:bg-slate-800/30 transition">
+              <td class="py-3 px-4 text-xs text-slate-400">${log.timestamp}</td>
+              <td class="py-3 px-4"><span class="px-2 py-0.5 rounded text-xs font-semibold border ${badgeColor}">${log.type}</span></td>
+              <td class="py-3 px-4 font-medium text-white">${log.freq}</td>
+              <td class="py-3 px-4 text-slate-300">${log.ctss}</td>
+              <td class="py-3 px-4"><span class="text-emerald-400 font-medium">● ${log.status}</span></td>
+              <td class="py-3 px-4 text-slate-400 text-xs">${log.notes}</td>
+            </tr>
+          `;
+        });
+      }
+
+      // Render Config Form
+      let cfgContainer = document.getElementById('config-form-container');
+      cfgContainer.innerHTML = "";
+      data.configs.forEach(cfg => {
+        cfgContainer.innerHTML += `
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-950/50 border border-slate-800/80 rounded-xl">
+            <div>
+              <h4 class="font-medium text-white text-sm">${cfg.name}</h4>
+              <p class="text-xs text-slate-400">${cfg.desc}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" id="cfg-val-${cfg.name}" value="${cfg.value}" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-sky-500">
+              <button onclick="saveConfig('${cfg.name}')" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm transition cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function saveConfig(name) {
+      let val = document.getElementById(`cfg-val-${name}`).value;
+      google.script.run
+        .withSuccessHandler(function(res) {
+          alert(res);
+          loadData();
+        })
+        .updateConfigValue(name, val);
+    }
+
+    function runDatabaseSetup() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          alert(res);
+          loadData();
+        })
+        .setupDatabase();
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('activityChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'],
+          datasets: [{
+            label: 'Aktivitas TX / RX',
+            data: [5, 12, 18, 25, 15, 30, 22],
+            borderColor: '#0ea5e9',
+            backgroundColor: 'rgba(14, 165, 233, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    function generateESPCodeText() {
+      const code = `/**
+ * ESP32 Gateway Firmware for POC to Analog Audio Interface
+ * Features: WiFi Client, HTTP POST/GET to Google Apps Script, OLED SSD1306 Display
+ * Created by UQ
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Konfigurasi WiFi
+const char* ssid = "WIFI_SSID_ANDA";
+const char* password = "WIFI_PASSWORD_ANDA";
+
+// URL Web App Google Apps Script Anda
+const char* gas_url = "https://script.google.com/macros/s/AKfycb.../exec";
+
+// Pin Definisi Audio Interface & PTT
+const int PTT_PIN = 25;
+const int COS_PIN = 26;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PTT_PIN, OUTPUT);
+  pinMode(COS_PIN, INPUT_PULLUP);
+  
+  // Inisialisasi OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.println("Connecting to WiFi...");
+  display.display();
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("WiFi Connected!");
+  display.println(WiFi.localIP().toString());
+  display.display();
+  delay(2000);
+}
+
+void loop() {
+  // Cek Status COS / Sinyal Masuk dari HT POC
+  if (digitalRead(COS_PIN) == LOW) {
+    digitalWrite(PTT_PIN, HIGH); // Aktifkan PTT ke HT Analog
+    updateOLED("TX ACTIVE", "143.500 MHz", "CTSS: 88.5");
+    sendLogToGAS("TX", "143.500", "88.5", "Sinyal diteruskan ke Analog");
+    delay(1000);
+  } else {
+    digitalWrite(PTT_PIN, LOW); // Lepas PTT
+    updateOLED("STANDBY / RX", "145.000 MHz", "CTSS: 88.5");
+  }
+  
+  delay(3000);
+}
+
+void updateOLED(String status, String freq, String tone) {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("=== POC GATEWAY ===");
+  display.setCursor(0,16);
+  display.println("Status: " + status);
+  display.setCursor(0,32);
+  display.println("Freq: " + freq);
+  display.setCursor(0,48);
+  display.println("Tone: " + tone);
+  display.display();
+}
+
+void sendLogToGAS(String type, String freq, String tone, String notes) {
+  if(WiFi.status() == WL_CONNECTED){
+    HTTPClient http;
+    String url = String(gas_url) + "?action=logEvent&type=" + type + "&freq=" + freq + "&tone=" + tone + "&notes=" + notes;
+    http.begin(url);
+    int httpResponseCode = http.GET();
+    http.end();
+  }
+}
+`;
+      document.getElementById('esp-code-box').innerText = code;
+    }
+
+    function copyESPCode() {
+      const codeText = document.getElementById('esp-code-box').innerText;
+      navigator.clipboard.writeText(codeText).then(() => {
+        alert("Kode ESP32 berhasil disalin ke clipboard!");
+      });
+    }
+  </script>
+</body>
+</html>
